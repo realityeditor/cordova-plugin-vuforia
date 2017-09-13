@@ -11,5 +11,6 @@
 - (bool) stopTrackers;
 - (bool) startTrackers;
 - (bool) updateTargets:(NSArray *)targets;
+- (NSData *) getProjectionMatrix;
 - (void) close;
 @end

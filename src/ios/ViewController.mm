@@ -45,7 +45,8 @@
         self.imageTargetsViewController.imageTargetFile = [self.imageTargets objectForKey:@"imageTargetFile"];
         self.imageTargetsViewController.imageTargetNames = [self.imageTargets objectForKey:@"imageTargetNames"];
 
-        [self presentViewController:self.imageTargetsViewController animated:NO completion:nil];
+        [self addChildViewController:self.imageTargetsViewController];
+        [self.view addSubview:self.imageTargetsViewController.view];
     }
 }
 
@@ -64,6 +65,10 @@
 
 - (bool) updateTargets:(NSArray *)targets {
     return [self.imageTargetsViewController doUpdateTargets:targets];
+}
+
+- (NSData *)getProjectionMatrix {
+    return [self.imageTargetsViewController getProjectionMatrix];
 }
 
 - (void) close{

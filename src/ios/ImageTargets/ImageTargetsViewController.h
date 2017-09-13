@@ -38,5 +38,6 @@
 - (bool) doStartTrackers;
 - (bool) doStopTrackers;
 - (bool) doUpdateTargets:(NSArray *)targets;
+- (NSData *)getProjectionMatrix;
 
 @end

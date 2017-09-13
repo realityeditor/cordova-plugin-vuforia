@@ -17,13 +17,19 @@
 #import <Vuforia/TrackableResult.h>
 #import <Vuforia/DataSet.h>
 #import <Vuforia/CameraDevice.h>
+#import <Vuforia/Tool.h>
+#import <Vuforia/Marker.h>
+#import <Vuforia/Renderer.h>
 
 #import <Vuforia/Vuforia_iOS.h>
+
+#define NUM_SIMULTANEOUS_MARKERS 5
 
 @interface ImageTargetsViewController ()
 
 @property (assign, nonatomic) id<GLResourceHandler> glResourceHandler;
 
+@property (nonatomic, strong) NSMutableArray* markersFound;
 
 @end
 
@@ -41,6 +47,8 @@
     self = [self initWithNibName:nil bundle:nil];
 
     self.delaying = false;
+
+    self.markersFound = [[NSMutableArray alloc] init];
 
     return self;
 }
@@ -69,6 +77,8 @@
             viewFrame.size.height *= 2.0;
         }
 
+        viewFrame.origin.y = -0.5 * viewFrame.size.height;
+
         dataSetCurrent = nil;
         extendedTrackingIsOn = NO;
 
@@ -88,7 +98,7 @@
          selector:@selector(resumeAR)
          name:UIApplicationDidBecomeActiveNotification
          object:nil];
-         [self loadOverlay];
+         // [self loadOverlay];
     }
     return self;
 }
@@ -353,6 +363,11 @@
 
     if (initError == nil) {
 
+        Vuforia::setHint(Vuforia::HINT_MAX_SIMULTANEOUS_IMAGE_TARGETS, NUM_SIMULTANEOUS_MARKERS);
+
+        // Vuforia::Renderer& rendererInstance = Vuforia::Renderer::getInstance();
+        // rendererInstance.setTargetFps(60); // recommended is 30 for smooth tracking, but it always drifts a bit behind the camera unless 60
+
         NSError * error = nil;
         [vapp startAR:Vuforia::CameraDevice::CAMERA_DIRECTION_BACK error:&error];
 
@@ -372,6 +387,16 @@
     }
 }
 
+- (NSData *)getProjectionMatrix {
+    float nearPlane = 2;
+    float farPlane = 2000;
+    const Vuforia::CameraCalibration& cameraCalibration = Vuforia::CameraDevice::getInstance().getCameraCalibration();
+    Vuforia::Matrix44F projectionMatrix = Vuforia::Tool::getProjectionGL(cameraCalibration, nearPlane, farPlane);
+    NSData* projMatrix = [NSData dataWithBytes:(const void *)projectionMatrix.data length:sizeof(float)*16];
+    return projMatrix;
+}
+
+
 #pragma mark - UIAlertViewDelegate
 
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
@@ -383,28 +408,30 @@
 
 //	Update function called while camera is tracking images
 - (void) onVuforiaUpdate: (Vuforia::State *) state {
+    
+    if (self.isContinuousTrackerMode) {
+        
+        [self.markersFound removeAllObjects];
+        
+        for (int i = 0; i < state->getNumTrackableResults(); ++i) {
 
-    for (int i = 0; i < state->getNumTrackableResults(); ++i) {
+            const Vuforia::TrackableResult* result = state->getTrackableResult(i);
+            const Vuforia::Matrix44F modelViewMatrix = Vuforia::Tool::convert2GLMatrix(result->getPose());
+            const char* name = result->getTrackable().getName();
+            NSData* matrixData = [NSData dataWithBytes:(const void *)modelViewMatrix.data length:sizeof(float)*16];
 
-        const Vuforia::TrackableResult* result = state->getTrackableResult(i);
-        const Vuforia::Trackable& trackable = result->getTrackable();
-
-
-        for(NSString *imageName in self.imageTargetNames) {
-            //	Check if matched target is matched
-            if (!strcmp(trackable.getName(), imageName.UTF8String))
-            {
-                [self doStopTrackers];
-                NSLog(@"Vuforia Plugin :: image found!!!");
-                NSDictionary* userInfo = @{@"status": @{@"imageFound": @true, @"message": @"Image Found."}, @"result": @{@"imageName": imageName}};
-
-                dispatch_sync(dispatch_get_main_queue(), ^{
-                    NSLog(@"Vuforia Plugin :: messaged dispatched!!!");
-                    [[NSNotificationCenter defaultCenter] postNotificationName:@"ImageMatched" object:self userInfo:userInfo];
-                });
-            }
+            NSDictionary* marker = @{@"name": [NSString stringWithUTF8String:name], @"modelViewMatrix":matrixData};
+            [self.markersFound addObject:marker];
         }
+        
+        NSDictionary* userInfo = @{@"markersFound": self.markersFound};
+        
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"MarkerUpdate" object:self userInfo:userInfo];
+        });
+        
     }
+    
 }
 
 
