@@ -25,6 +25,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.util.Pair;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -43,11 +44,15 @@ import android.widget.Toast;
 //import android.R;
 //import com.example.hello.R;
 
+import com.mattrayner.vuforia.app.ImageTargetRenderer;
+import com.vuforia.CameraCalibration;
 import com.vuforia.CameraDevice;
 import com.vuforia.DataSet;
+import com.vuforia.Matrix44F;
 import com.vuforia.ObjectTracker;
 import com.vuforia.State;
 import com.vuforia.STORAGE_TYPE;
+import com.vuforia.Tool;
 import com.vuforia.Trackable;
 import com.vuforia.Tracker;
 import com.vuforia.TrackerManager;
@@ -60,6 +65,8 @@ import com.mattrayner.vuforia.app.utils.ApplicationGLView;
 import com.mattrayner.vuforia.app.utils.Texture;
 
 import com.mattrayner.vuforia.VuforiaPlugin;
+
+import org.json.JSONArray;
 
 public class ImageTargets extends Activity implements ApplicationControl
 {
@@ -372,7 +379,7 @@ public class ImageTargets extends Activity implements ApplicationControl
         mGlView = new ApplicationGLView(this);
         mGlView.init(translucent, depthSize, stencilSize);
 
-        mRenderer = new ImageTargetRenderer(this, vuforiaAppSession, mTargets);
+//        mRenderer = new ImageTargetRenderer(this, vuforiaAppSession, mTargets); // TODO: uncomment
         mGlView.setRenderer(mRenderer);
 
     }
@@ -759,6 +766,74 @@ public class ImageTargets extends Activity implements ApplicationControl
             VuforiaPlugin.sendImageFoundUpdate(imageName);
         }
     }
+
+    public void markerUpdate(JSONArray markersFound) {
+//    public void markerUpdate(ArrayList<Pair<String,String>> markersFound) {
+        Log.d(LOGTAG, "Sending repeat callback");
+
+        String projectionMatrixString = getProjectionMatrix();
+        VuforiaPlugin.sendMarkerUpdate(markersFound, projectionMatrixString);
+    }
+
+    private String getProjectionMatrix() {
+        float nearPlane = 2;
+        float farPlane = 2000;
+        CameraCalibration cameraCalibration = CameraDevice.getInstance().getCameraCalibration();
+        Matrix44F projectionMatrix = Tool.getProjectionGL(cameraCalibration, nearPlane, farPlane);
+        return ImageTargetRenderer.stringFromMatrix(projectionMatrix);
+    }
+
+//    - (NSData *)getProjectionMatrix {
+//    float nearPlane = 2;
+//    float farPlane = 2000;
+//    const Vuforia::CameraCalibration& cameraCalibration = Vuforia::CameraDevice::getInstance().getCameraCalibration();
+//    Vuforia::Matrix44F projectionMatrix = Vuforia::Tool::getProjectionGL(cameraCalibration, nearPlane, farPlane);
+//    NSData* projMatrix = [NSData dataWithBytes:(const void *)projectionMatrix.data length:sizeof(float)*16];
+//    return projMatrix;
+//}
+
+//    public void markerUpdate(String imageName, Matrix44F modelViewMatrix) {
+//        Context context =  this.getApplicationContext();
+//        Intent resultIntent = new Intent();
+//        resultIntent.putExtra("name", imageName);
+//
+//        String modelViewMatrixString = stringFromMatrix(modelViewMatrix);
+//        resultIntent.putExtra("modelViewMatrix", modelViewMatrixString);
+//
+//        this.setResult(0, resultIntent);
+//
+//        doStopTrackers();
+//
+//        Log.d(LOGTAG, "mAuto Stop On Image Found: " + mAutostopOnImageFound);
+//
+//        if(mAutostopOnImageFound) {
+//            Vuforia.deinit();
+//
+//            finish();
+//        } else {
+//            Log.d(LOGTAG, "Sending repeat callback");
+//
+////            VuforiaPlugin.sendImageFoundUpdate(imageName);
+//            VuforiaPlugin.sendMarkerUpdate(imageName, modelViewMatrixString);
+//        }
+//    }
+
+//    private String stringFromMatrix(Matrix44F matrix) {
+//        float[] data = matrix.getData();
+//        return "[" + data[0] + "," + data[1] + "," + data[2] + "," + data[3] + ","
+//                   + data[4] + "," + data[5] + "," + data[6] + "," + data[7] + ","
+//                   + data[8] + "," + data[9] + "," + data[10] + "," + data[11] + ","
+//                   + data[12] + "," + data[13] + "," + data[14] + "," + data[15] + "]";
+//    }
+
+//    - (NSString *)stringFromMatrix:(float*)mat
+//    {
+//        return [NSString stringWithFormat:@"[%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f]",
+//            mat[0], mat[1], mat[2], mat[3],
+//            mat[4], mat[5], mat[6], mat[7],
+//            mat[8], mat[9], mat[10],mat[11],
+//            mat[12],mat[13],mat[14],mat[15]]; //   0.0f,   0.0f,   0.0f,   1.0f];
+//    }
 
     public void doUpdateTargets(String targets) {
         mTargets = targets;

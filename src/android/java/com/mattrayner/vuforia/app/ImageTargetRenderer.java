@@ -7,6 +7,7 @@ and other countries. Trademarks of QUALCOMM Incorporated are used with permissio
 
 package com.mattrayner.vuforia.app;
 
+import java.util.ArrayList;
 import java.util.Vector;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -18,10 +19,14 @@ import android.content.Intent;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
+import android.util.Pair;
 import android.widget.Toast;
 
+import com.vuforia.Matrix34F;
+import com.vuforia.Matrix44F;
 import com.vuforia.Renderer;
 import com.vuforia.State;
+import com.vuforia.Tool;
 import com.vuforia.Trackable;
 import com.vuforia.TrackableResult;
 import com.vuforia.VIDEO_BACKGROUND_REFLECTION;
@@ -29,6 +34,11 @@ import com.vuforia.Vuforia;
 import com.mattrayner.vuforia.app.ApplicationSession;
 import com.mattrayner.vuforia.app.utils.LoadingDialogHandler;
 import com.mattrayner.vuforia.app.utils.Texture;
+import com.webileapps.fragments.VuforiaFragment;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 
 // The renderer class for the ImageTargets sample.
@@ -37,23 +47,32 @@ public class ImageTargetRenderer implements GLSurfaceView.Renderer
     private static final String LOGTAG = "ImageTargetRenderer";
 
     private ApplicationSession vuforiaAppSession;
-    private ImageTargets mActivity;
+//    private ImageTargets mActivity;
+    private VuforiaFragment mFragment;
 
     private Renderer mRenderer;
 
-    boolean mIsActive = false;
+    public boolean mIsActive = false;
 
     String mTargets = "";
 
+//    ArrayList<String> mMarkersFound = new ArrayList<String>();
+//    ArrayList<Pair<String,String>> mMarkersFound = new ArrayList<Pair<String, String>>();
+    JSONArray mMarkersFound = new JSONArray();
 
-    public ImageTargetRenderer(ImageTargets activity,
+//    public ImageTargetRenderer(ImageTargets activity,
+    public ImageTargetRenderer(VuforiaFragment fragment,
         ApplicationSession session, String targets)
     {
-        mActivity = activity;
+//        mActivity = activity;
+        mFragment = fragment;
         vuforiaAppSession = session;
         mTargets = targets;
     }
 
+    public void setSession(ApplicationSession session) {
+        vuforiaAppSession = session;
+    }
 
     // Called to draw the current frame.
     @Override
@@ -73,11 +92,13 @@ public class ImageTargetRenderer implements GLSurfaceView.Renderer
     {
         Log.d(LOGTAG, "GLRenderer.onSurfaceCreated");
 
-        initRendering();
+//        initRendering(); //// TODO: 8/15/17
 
         // Call Vuforia function to (re)initialize rendering after first use
         // or after OpenGL ES context was lost (e.g. after onPause/onResume):
-        vuforiaAppSession.onSurfaceCreated();
+//        if (vuforiaAppSession != null) {
+            vuforiaAppSession.onSurfaceCreated();
+//        }
     }
 
 
@@ -93,7 +114,7 @@ public class ImageTargetRenderer implements GLSurfaceView.Renderer
 
 
     // Function for initializing the renderer.
-    private void initRendering()
+    public void initRendering()
     {
         mRenderer = Renderer.getInstance();
 
@@ -102,8 +123,8 @@ public class ImageTargetRenderer implements GLSurfaceView.Renderer
 
 
         // Hide the Loading Dialog
-        mActivity.loadingDialogHandler
-            .sendEmptyMessage(LoadingDialogHandler.HIDE_LOADING_DIALOG);
+//        mActivity.loadingDialogHandler
+//            .sendEmptyMessage(LoadingDialogHandler.HIDE_LOADING_DIALOG);
 
     }
 
@@ -127,13 +148,21 @@ public class ImageTargetRenderer implements GLSurfaceView.Renderer
         else
             GLES20.glFrontFace(GLES20.GL_CCW); // Back camera
 
+//        mMarkersFound.clear();
+        mMarkersFound = new JSONArray();
+
         // did we find any trackables this frame?
         for (int tIdx = 0; tIdx < state.getNumTrackableResults(); tIdx++)
         {
             TrackableResult result = state.getTrackableResult(tIdx);
             Trackable trackable = result.getTrackable();
+            Matrix34F pose = result.getPose();
+//            Matrix44F modelViewMatrix = Tool.convertPose2GLMatrix(pose);
+            Matrix44F modelViewMatrix = Tool.convert2GLMatrix(pose);
 
             String obj_name = trackable.getName();
+            String modelViewMatrixString = stringFromMatrix(modelViewMatrix);
+
 
             Log.d(LOGTAG, "MRAY :: Found: " + obj_name);
 
@@ -146,13 +175,35 @@ public class ImageTargetRenderer implements GLSurfaceView.Renderer
 
             if (looking_for)
             {
-                mActivity.imageFound(obj_name);
+//                mActivity.imageFound(obj_name);
+//                mActivity.markerUpdate(obj_name, modelViewMatrix);
+//                mMarkersFound.add(Pair.create(obj_name, modelViewMatrixString));
+                try {
+                    JSONObject marker = new JSONObject();
+                    marker.put("name", obj_name);
+                    marker.put("modelViewMatrix", modelViewMatrixString);
+                    mMarkersFound.put(marker);
+                } catch (JSONException e) {
+                    Log.d(LOGTAG, "JSON ERROR: " + e);
+                }
+
             }
         }
+
+//        mActivity.markerUpdate(mMarkersFound);
+        mFragment.markerUpdate(mMarkersFound);
 
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
 
         mRenderer.end();
+    }
+
+    public static String stringFromMatrix(Matrix44F matrix) {
+        float[] data = matrix.getData();
+        return "[" + data[0] + "," + data[1] + "," + data[2] + "," + data[3] + ","
+                + data[4] + "," + data[5] + "," + data[6] + "," + data[7] + ","
+                + data[8] + "," + data[9] + "," + data[10] + "," + data[11] + ","
+                + data[12] + "," + data[13] + "," + data[14] + "," + data[15] + "]";
     }
 
     public void updateTargetStrings(String targets) {
