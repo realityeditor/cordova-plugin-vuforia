@@ -52,6 +52,9 @@
         <!-- Plugin Source -->
         <source-file src="src/android/VuforiaPlugin.java" target-dir="src/com/mattrayner/vuforia" />
 
+        <!-- Preferences -->
+        <preference name="android-minSdkVersion" value="17" />
+
         <!-- Assets -->
         <resource-file src="src/android/res/drawable/devices.png" target="res/drawable/devices.png" />
         <resource-file src="src/android/res/drawable-hdpi/devices.png" target="res/drawable-hdpi/devices.png" />
@@ -143,4 +146,9 @@
     </platform>
 
     <dependency id="cordova-plugin-vuforia-sdk" version="6.x.x" />
+    <!-- <dependency id="org.apache.cordova.device" url="https://github.com/apache/cordova-plugin-device.git"  /> -->
+
+    <!-- <dependency id="cordova-android-fragments" url="https://github.com/rajivnarayana/CordovaFragments.git" /> -->
+    <dependency id="cordova-android-fragments" url="https://github.com/Benolds/CordovaFragments.git" />
+
 </plugin>

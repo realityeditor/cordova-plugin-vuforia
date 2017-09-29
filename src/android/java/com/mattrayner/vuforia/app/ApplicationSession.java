@@ -96,28 +96,6 @@ public class ApplicationSession implements UpdateCallbackInterface
             && (Build.VERSION.SDK_INT > Build.VERSION_CODES.FROYO))
             screenOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
 
-        // Use an OrientationChangeListener here to capture all orientation changes.  Android
-        // will not send an Activity.onConfigurationChanged() callback on a 180 degree rotation,
-        // ie: Left Landscape to Right Landscape.  Vuforia needs to react to this change and the
-        // ApplicationSession needs to update the Projection Matrix.
-        OrientationEventListener orientationEventListener = new OrientationEventListener(mActivity) {
-            @Override
-            public void onOrientationChanged(int i) {
-                int activityRotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
-                if(mLastRotation != activityRotation)
-                {
-                    // Signal the ApplicationSession to refresh the projection matrix
-                    setProjectionMatrix();
-                    mLastRotation = activityRotation;
-                }
-            }
-
-            int mLastRotation = -1;
-        };
-
-        if(orientationEventListener.canDetectOrientation())
-            orientationEventListener.enable();
-
         // Apply screen orientation
         mActivity.setRequestedOrientation(screenOrientation);
 

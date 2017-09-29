@@ -16,9 +16,10 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.util.Log;
 import android.Manifest;
-import android.Manifest.permission;
 
 import com.mattrayner.vuforia.app.ImageTargets;
+import com.webileapps.fragments.MainActivity;
+import com.webileapps.fragments.VuforiaFragment;
 
 public class VuforiaPlugin extends CordovaPlugin {
     static final String LOGTAG = "CordovaVuforiaPlugin";
@@ -54,6 +55,8 @@ public class VuforiaPlugin extends CordovaPlugin {
     private boolean autostopOnImageFound = true;
     CallbackContext callback;
 
+    private static JSONObject previousMarkers = new JSONObject();
+
     public VuforiaPlugin() {
     }
 
@@ -69,7 +72,7 @@ public class VuforiaPlugin extends CordovaPlugin {
 
         // Handle all expected actions
         if(action.equals("cordovaStartVuforia")) {
-            startVuforia(action, args, callbackContext);
+            addVuforiaToFragment(action, args, callbackContext);
         }
         else if(action.equals("cordovaStopVuforia")) {
             stopVuforia(action, args, callbackContext);
@@ -88,6 +91,37 @@ public class VuforiaPlugin extends CordovaPlugin {
         }
 
         return true;
+    }
+
+    // Start our Vuforia activities by adding them to a new fragment
+    public void addVuforiaToFragment(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
+        // If we are starting Vuforia, set the public variable referencing our start callback for later use
+        VuforiaPlugin.persistantVuforiaStartCallback = callbackContext;
+
+        VuforiaFragment fragment = (VuforiaFragment) cordova.getActivity().getFragmentManager().findFragmentByTag(VuforiaFragment.TAG);
+
+        ACTION = action;
+        ARGS = args;
+
+        // Get all of our ARGS out and into local variables
+        String targetFile = args.getString(0);
+        String targets = args.getJSONArray(1).toString();
+        String overlayText = (args.isNull(2)) ? null : args.getString(2);
+        String vuforiaLicense = args.getString(3);
+        Boolean closeButton = args.getBoolean(4);
+        Boolean showDevicesIcon = args.getBoolean(5);
+        autostopOnImageFound = args.getBoolean(6);
+
+        fragment.setTargetFile(targetFile);
+        fragment.setTargets(targets);
+        fragment.setOverlayText(overlayText);
+        fragment.setVuforiaLicense(vuforiaLicense);
+
+        if (cordova.hasPermission(CAMERA)) {
+            fragment.startVuforiaForResult(IMAGE_REC_REQUEST);
+        } else {
+            cordova.requestPermission(this, CAPTURE_VIDEO_ACTIVITY_REQUEST_CODE, CAMERA);
+        }
     }
 
     // Start our Vuforia activities
@@ -212,16 +246,19 @@ public class VuforiaPlugin extends CordovaPlugin {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         String name;
+        String modelViewMatrix;
 
         // If we get to this point with no data  then we've likely got an error. Or the activity closed because of an error.
         if (data == null) {
             name = "ERROR";
+            modelViewMatrix = "ERROR";
         }
         else {
             name = data.getStringExtra("name");
+            modelViewMatrix = data.getStringExtra("modelViewMatrix");
         }
 
-        Log.d(LOGTAG, "Plugin received '" + name + "' from Vuforia.");
+        Log.d(LOGTAG, "Plugin received '" + name + " with " + modelViewMatrix + "' from Vuforia.");
 
         // Check which request we're responding to
         if (requestCode == IMAGE_REC_REQUEST) {
@@ -240,6 +277,7 @@ public class VuforiaPlugin extends CordovaPlugin {
                         // Create our result object
                         JSONObject jsonResult = new JSONObject();
                         jsonResult.put("imageName", name);
+                        jsonResult.put("modelViewMatrix", modelViewMatrix);
 
                         // Create our response object
                         jsonObj.put("status", jsonStatus);
@@ -309,6 +347,47 @@ public class VuforiaPlugin extends CordovaPlugin {
         }
         catch( JSONException e ) {
             Log.d(LOGTAG, "JSON ERROR: " + e);
+        }
+    }
+
+    // Send an asynchronous update when an image is found and Vuforia is set to stay open.
+    public static void sendMarkerUpdate(JSONArray markersFound, String projectionMatrixString){
+        // Create an object to hold our response
+        JSONObject jsonObj = new JSONObject();
+
+        // Try to build a JSON response to send to Cordova
+        try {
+            JSONObject jsonStatus = new JSONObject();
+            jsonStatus.put("markersFound", true);
+            jsonStatus.put("message", "Markers were found.");
+
+            JSONObject jsonResult = new JSONObject();
+            jsonResult.put("projectionMatrix", projectionMatrixString);
+            jsonResult.put("markersFound", markersFound);
+
+            jsonObj.put("status", jsonStatus);
+            jsonObj.put("result", jsonResult);
+        } catch (JSONException e) {
+            Log.d(LOGTAG, "JSON ERROR: " + e);
+        }
+
+        String currentString = jsonObj.toString();
+        String prevString = previousMarkers.toString();
+        boolean hasChanged = !prevString.equals(currentString);
+
+        if (hasChanged) {
+            // Build our response
+            PluginResult result = new PluginResult(PluginResult.Status.OK, jsonObj);
+            result.setKeepCallback(true); // Don't clean up our callback (we intend on sending more messages to it)
+
+            // Send the result to our PERSISTANT callback
+            persistantVuforiaStartCallback.sendPluginResult(result);
+        }
+
+        try {
+            previousMarkers = new JSONObject(jsonObj.toString());
+        } catch (JSONException e) {
+            Log.d(LOGTAG, "JSON ERROR: "  e);
         }
     }
 
